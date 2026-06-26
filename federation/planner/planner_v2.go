@@ -644,12 +644,12 @@ func (p *PlannerV2) findAndBuildEntitySteps(
 					// Extension: include the full boundary field
 					entitySelections = p.buildEntityStepSelections([]ast.Selection{selection}, targetSubGraph, parentType, parentStep, entityTypeToResolve, fragmentDefs)
 					// InsertionPath points to the parent entity (e.g., [Query, customer])
-					insertionPath = currentPath
+					insertionPath = append([]string{}, currentPath...)
 				} else {
 					// Reference: include only the children of the boundary field
 					entitySelections = p.buildEntityStepSelections(field.SelectionSet, targetSubGraph, entityTypeToResolve, parentStep, entityTypeToResolve, fragmentDefs)
 					// InsertionPath includes the boundary field (e.g., [Query, product, reviews, product])
-					insertionPath = append(currentPath, fieldName)
+					insertionPath = append(append([]string{}, currentPath...), fieldName)
 				}
 
 				// Create new entity step
