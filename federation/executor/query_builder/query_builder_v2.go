@@ -169,13 +169,73 @@ func (qb *queryBuilderV2) inferVariableType(varName string, variables map[string
 
 // getVariableTypeFromSchema gets the variable type from the schema.
 func (qb *queryBuilderV2) getVariableTypeFromSchema(varName string, step *planner.StepV2) string {
-	// Find the argument that uses this variable
 	for _, sel := range step.SelectionSet {
 		if field, ok := sel.(*ast.Field); ok {
 			for _, arg := range field.Arguments {
-				if variable, ok := arg.Value.(*ast.Variable); ok && variable.Name == varName {
-					// Get the argument type from schema
-					return qb.getArgumentTypeFromSchema(step, step.ParentType, field.Name.String(), arg.Name.String())
+				switch val := arg.Value.(type) {
+				case *ast.Variable:
+					if val.Name == varName {
+						return qb.getArgumentTypeFromSchema(step, step.ParentType, field.Name.String(), arg.Name.String())
+					}
+				case *ast.ObjectValue:
+					argTypeStr := qb.getArgumentTypeFromSchema(step, step.ParentType, field.Name.String(), arg.Name.String())
+					if argTypeStr != "" {
+						typeName := qb.extractBaseTypeName(argTypeStr)
+						if varType := qb.getVariableTypeFromObjectValue(val, typeName, varName, step); varType != "" {
+							return varType
+						}
+					}
+				case *ast.ListValue:
+					argTypeStr := qb.getArgumentTypeFromSchema(step, step.ParentType, field.Name.String(), arg.Name.String())
+					if argTypeStr != "" {
+						baseName := qb.extractBaseTypeName(argTypeStr)
+						for _, item := range val.Values {
+							if objVal, ok := item.(*ast.ObjectValue); ok {
+								if varType := qb.getVariableTypeFromObjectValue(objVal, baseName, varName, step); varType != "" {
+									return varType
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// getVariableTypeFromObjectValue looks up the variable type inside an input object literal.
+// It resolves the input type by name from the schema, then finds the field that uses the variable
+// and returns its declared type.
+func (qb *queryBuilderV2) getVariableTypeFromObjectValue(objVal *ast.ObjectValue, inputTypeName string, varName string, step *planner.StepV2) string {
+	var inputDef *ast.InputObjectTypeDefinition
+	for _, def := range step.SubGraph.Schema.Definitions {
+		if inputObj, ok := def.(*ast.InputObjectTypeDefinition); ok && inputObj.Name.String() == inputTypeName {
+			inputDef = inputObj
+			break
+		}
+	}
+	if inputDef == nil {
+		return ""
+	}
+
+	for _, objField := range objVal.Fields {
+		switch val := objField.Value.(type) {
+		case *ast.Variable:
+			if val.Name == varName {
+				for _, inputField := range inputDef.Fields {
+					if inputField.Name.String() == objField.Name.String() {
+						return inputField.Type.String()
+					}
+				}
+			}
+		case *ast.ObjectValue:
+			for _, inputField := range inputDef.Fields {
+				if inputField.Name.String() == objField.Name.String() {
+					nestedTypeName := qb.extractBaseTypeName(inputField.Type.String())
+					if nestedType := qb.getVariableTypeFromObjectValue(val, nestedTypeName, varName, step); nestedType != "" {
+						return nestedType
+					}
 				}
 			}
 		}
