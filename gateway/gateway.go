@@ -175,8 +175,15 @@ func buildTransport(pool ConnectionPoolSetting, otelEnabled bool) http.RoundTrip
 // NewGateway builds a gateway by fetching the SDL from every subgraph listed in
 // settings, composing them into a SuperGraph, and wiring up the execution engine.
 func NewGateway(settings GatewayOption) (*gateway, error) {
+	httpClientTimeout := 5 * time.Second
+	if settings.TimeoutDuration != "" {
+		if d, err := time.ParseDuration(settings.TimeoutDuration); err == nil {
+			httpClientTimeout = d
+		}
+	}
+
 	httpClient := &http.Client{
-		Timeout:   3 * time.Second,
+		Timeout:   httpClientTimeout,
 		Transport: buildTransport(settings.ConnectionPool, settings.Opentelemetry.TracingSetting.Enable),
 	}
 
