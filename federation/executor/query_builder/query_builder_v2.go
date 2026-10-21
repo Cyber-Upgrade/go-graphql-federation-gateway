@@ -142,6 +142,10 @@ func (qb *queryBuilderV2) collectVariablesFromValue(val ast.Value, vars map[stri
 
 // inferVariableType infers the type of a variable from its value or schema.
 func (qb *queryBuilderV2) inferVariableType(varName string, variables map[string]interface{}, step *planner.StepV2) string {
+	if varType, ok := step.VariableTypes[varName]; ok && varType != "" {
+		return varType
+	}
+
 	// Try to get type from schema if SubGraph is available
 	if step.SubGraph != nil && step.SubGraph.Schema != nil {
 		if varType := qb.getVariableTypeFromSchema(varName, step); varType != "" {

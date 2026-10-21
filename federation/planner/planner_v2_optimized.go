@@ -285,10 +285,10 @@ func (p *PlannerV2) findAndBuildEntityStepsOptimized(
 
 			if entityTypeToResolve == parentType {
 				entitySelections = p.buildEntityStepSelections([]ast.Selection{selection}, targetSubGraph, parentType, parentStep, entityTypeToResolve, fragmentDefs)
-				insertionPath = currentPath
+				insertionPath = append([]string{}, currentPath...)
 			} else {
 				entitySelections = p.buildEntityStepSelections(field.SelectionSet, targetSubGraph, entityTypeToResolve, parentStep, entityTypeToResolve, fragmentDefs)
-				insertionPath = append(currentPath, fieldName)
+				insertionPath = append(append([]string{}, currentPath...), fieldName)
 			}
 
 			newStep := &StepV2{
