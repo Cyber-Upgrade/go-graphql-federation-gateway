@@ -31,6 +31,7 @@ type StepV2 struct {
 	Path          []string          // Path to the field
 	DependsOn     []int             // List of dependent step IDs
 	InsertionPath []string          // Path to insert results (for entity resolution)
+	VariableTypes map[string]string // Variable types declared by the client operation
 }
 
 func (s *StepV2) MergePath() []string {
@@ -50,6 +51,7 @@ type PlanV2 struct {
 	RootStepIndexes  []int         // Indexes of root steps
 	OriginalDocument *ast.Document // Original query document
 	OperationType    string        // Operation type (query, mutation, subscription)
+	VariableTypes    map[string]string
 }
 
 // PlannerV2 generates query execution plans.
@@ -98,6 +100,13 @@ func (p *PlannerV2) Plan(doc *ast.Document, variables map[string]any) (*PlanV2, 
 		RootStepIndexes:  make([]int, 0),
 		OriginalDocument: doc,
 		OperationType:    string(op.Operation),
+		VariableTypes:    make(map[string]string, len(op.VariableDefinitions)),
+	}
+
+	for _, def := range op.VariableDefinitions {
+		if def.Variable != nil && def.Type != nil {
+			plan.VariableTypes[def.Variable.Name] = def.Type.String()
+		}
 	}
 
 	// Step ID counter
@@ -188,6 +197,12 @@ func (p *PlannerV2) Plan(doc *ast.Document, variables map[string]any) (*PlanV2, 
 	// This optimization can significantly reduce network calls in federated queries.
 	// For now, @provides directives are parsed and available in entity field metadata,
 	// but the optimization logic is deferred to future implementation.
+
+	// Variables nested in object/list arguments cannot be typed from the subgraph schema,
+	// so every step reuses the types the client declared.
+	for _, step := range plan.Steps {
+		step.VariableTypes = plan.VariableTypes
+	}
 
 	return plan, nil
 }
